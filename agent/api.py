@@ -1,0 +1,68 @@
+import logging
+import os
+import random
+import time
+
+import anthropic
+import openai
+
+logger = logging.getLogger(__name__)
+
+
+def create_inference_server(api_type: str):
+    """Create an LLM client based on API type."""
+    if api_type == "openai":
+        return openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    elif api_type in ("claude", "anthropic"):
+        return anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+    else:
+        raise ValueError(f"Unsupported api_type: {api_type}")
+
+
+def _query_openai(client, model_name, prompt, max_completion_tokens, **kwargs):
+    """Query OpenAI-compatible API."""
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[{"role": "user", "content": prompt}],
+        max_completion_tokens=max_completion_tokens,
+        **kwargs,
+    )
+    return response.choices[0].message.content
+
+
+def _query_anthropic(client, model_name, prompt, max_completion_tokens, **kwargs):
+    """Query Anthropic API directly."""
+    response = client.messages.create(
+        model=model_name,
+        max_tokens=max_completion_tokens,
+        messages=[{"role": "user", "content": prompt}],
+        **kwargs,
+    )
+    return "".join(b.text for b in response.content if hasattr(b, "text"))
+
+
+def query_inference_server(
+    server,
+    model_name: str,
+    prompt: str,
+    max_completion_tokens: int = 16384,
+    retry_times: int = 5,
+    **kwargs,
+):
+    """Query LLM with retry and exponential backoff."""
+    kwargs.setdefault("temperature", 1.0)
+    is_anthropic = isinstance(server, anthropic.Anthropic)
+    query_fn = _query_anthropic if is_anthropic else _query_openai
+
+    for attempt in range(retry_times):
+        try:
+            return query_fn(server, model_name, prompt, max_completion_tokens, **kwargs)
+        except Exception as e:
+            logger.warning(
+                f"API call failed (attempt {attempt + 1}/{retry_times}): {e}"
+            )
+            if attempt == retry_times - 1:
+                raise
+            wait_time = (2**attempt) + random.uniform(0, 1)
+            logger.info(f"Retrying in {wait_time:.2f}s...")
+            time.sleep(wait_time)

@@ -1,0 +1,31 @@
+**__pycache__/
+scratch/
+**/scratch/
+*.egg-info/
+**build/
+**dist/
+# **results/
+results/*
+runs/*
+cache/*
+.env
+outputs/
+*.csv
+*.png
+models
+*.pkl
+*.lock
+*cache*
+temp*
+slurm_logs/*
+tmp/*
+
+# Development
+datasets/*
+!datasets/dataset.py
+test.txt
+test_data/*
+*_old
+
+.cursorignore
+.vscode/

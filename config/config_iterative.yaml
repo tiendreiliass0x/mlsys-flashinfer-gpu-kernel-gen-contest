@@ -1,0 +1,17 @@
+test_source: mlsys26-contest
+agent_type: iterative
+level: 2
+problem_id: 1
+tasks_path: config/tasks_default.txt
+dtype_str: fp32
+gpu_name: B200
+gpu_architecture: Blackwell
+api_type: claude
+model_name: claude-sonnet-4-5
+temperature: 0.6
+max_completion_tokens: 16384
+total_steps: 25
+pool_size: 6
+softmax_temperature: 1.0
+save_path: outputs/IRS_none_FIT-test_B200_25_260208-121400
+debug: false

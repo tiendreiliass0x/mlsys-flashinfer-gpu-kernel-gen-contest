@@ -1,0 +1,1 @@
+moe moe_fp8_block_scale_ds_routing_topk8_ng8_kg4_e32_h7168_i2048
