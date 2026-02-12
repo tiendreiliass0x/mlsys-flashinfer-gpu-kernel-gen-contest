@@ -25,11 +25,18 @@ config/
   tasks_default.txt    # Default task list
   tasks_mini.txt       # Minimal task list for smoke test
 datasets/              # FlashInfer-Trace / MLSys contest datasets
+requirements.txt       # Python dependencies
 ```
 
 ## Quick Start
 
-### 0. Download the Dataset
+### 0. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 1. Download the Dataset
 
 ```bash
 mkdir datasets
@@ -37,13 +44,13 @@ git lfs install
 git clone https://huggingface.co/datasets/flashinfer-ai/mlsys26-contest datasets/mlsys26-contest
 ```
 
-### 1. Set API Key
+### 2. Set API Key
 
 ```bash
 export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY
 ```
 
-### 2. Run the Agent
+### 3. Run the Agent
 
 **Local GPU:**
 

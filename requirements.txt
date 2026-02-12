@@ -1,0 +1,10 @@
+anthropic
+openai
+numpy
+pydantic
+pyyaml
+tqdm
+flashinfer-bench
+torch
+triton
+modal
