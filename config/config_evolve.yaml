@@ -14,4 +14,6 @@ total_steps: 25
 pool_size: 6
 softmax_temperature: 1.0
 save_path: outputs/IRLE_none_FIT-test_B200_25_260208-121400
+eval_backend: local
+modal_gpu: B200
 debug: false

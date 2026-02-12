@@ -7,8 +7,14 @@ import logging
 import uuid
 
 from flashinfer_bench.bench import Benchmark, BenchmarkConfig
-from flashinfer_bench.data import (BuildSpec, EvaluationStatus, Solution,
-                                   SourceFile, SupportedLanguages, TraceSet)
+from flashinfer_bench.data import (
+    BuildSpec,
+    EvaluationStatus,
+    Solution,
+    SourceFile,
+    SupportedLanguages,
+    TraceSet,
+)
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -21,9 +27,9 @@ class EvalResult(BaseModel):
     correct: bool = False
     speedup: float = 0.0
     latency_ms: float | None = None
-    stats: dict | None = None
     task_id: str = ""
     error: str | None = None
+    stats: dict | None = None
 
 
 def calculate_score(metric: EvalResult):
@@ -54,6 +60,38 @@ def read_metrics(metrics_path: str, full: bool = False):
     if data.get("compiled") and data.get("correct"):
         return (True, data.get("speedup", 0.0))
     return (False, 0.0)
+
+
+def create_eval_fn(
+    backend: str = "local", dataset_name: str = "mlsys26-contest", remote_fn=None
+):
+    """Factory to create eval function based on backend.
+
+    Args:
+        backend: "local" for local GPU, "modal" for Modal remote GPU.
+        dataset_name: Dataset subdirectory name (used by modal backend).
+        remote_fn: Modal remote function (required when backend="modal").
+
+    Returns:
+        Callable with same signature as eval_kernel.
+    """
+    if backend == "local":
+        return eval_kernel
+    elif backend == "modal":
+        if remote_fn is None:
+            raise ValueError("remote_fn is required for modal backend")
+
+        def _modal_eval(
+            kernel_code, task_id, dataset_root, backend="triton", timeout=60
+        ):
+            result_dict = remote_fn.remote(
+                kernel_code, task_id, dataset_name, backend, timeout
+            )
+            return EvalResult(**result_dict)
+
+        return _modal_eval
+    else:
+        raise ValueError(f"Unknown eval backend: {backend}")
 
 
 def eval_kernel(

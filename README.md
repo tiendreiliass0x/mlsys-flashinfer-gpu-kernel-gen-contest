@@ -13,6 +13,7 @@ agent/
   evolve_agent.py      # Evolve Agent: elite pool evolution loop
   api.py               # LLM API client (OpenAI / Claude)
   eval.py              # Kernel evaluation via flashinfer-bench API
+  modal_eval.py        # Remote kernel evaluation on Modal GPU
   utils.py             # Shared utilities & data helpers
 prompt/
   proposer_prompt.py   # Kernel proposal prompt
@@ -44,9 +45,23 @@ export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY
 
 ### 2. Run the Agent
 
+**Local GPU:**
+
 ```bash
 python3 -m agent.main --config config/config_mini_test.yaml
 ```
+
+**Remote GPU via [Modal](https://modal.com/) (no local GPU needed):**
+
+```bash
+pip install modal
+modal setup  # one-time auth
+
+python3 -m agent.main --config config/config_mini_test.yaml \
+  --eval_backend modal --modal_gpu B200
+```
+
+The dataset is automatically uploaded to a Modal Volume on first run and cached for subsequent runs.
 
 ## Agent Types
 
@@ -68,6 +83,8 @@ gpu_architecture: Blackwell
 api_type: claude
 model_name: claude-sonnet-4-5
 total_steps: 25
+eval_backend: local     # "local" or "modal"
+modal_gpu: B200         # GPU type for Modal (ignored when eval_backend=local)
 ```
 
 Available configs:
@@ -86,6 +103,8 @@ Key parameters:
 - `total_steps`: number of iterations per task
 - `api_type`: `openai` or `claude`
 - `model_name`: LLM model to use
+- `eval_backend`: `local` (default) or `modal` for remote GPU evaluation
+- `modal_gpu`: GPU type on Modal (e.g. `B200`)
 
 ### Task List Format
 

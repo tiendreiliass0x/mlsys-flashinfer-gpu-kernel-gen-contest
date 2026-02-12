@@ -8,18 +8,10 @@ import shutil
 
 from tqdm import tqdm
 
-from agent.eval import EvalResult, calculate_score, eval_kernel
 from agent.api import query_inference_server
-from agent.utils import (
-    extract_edits,
-    extract_first_code,
-    get_dataset_root,
-    str_replace,
-)
-from prompt.proposer_prompt import (
-    generate_pool_prompt,
-    generate_proposer_prompt,
-)
+from agent.eval import EvalResult, calculate_score
+from agent.utils import extract_edits, extract_first_code, get_dataset_root, str_replace
+from prompt.proposer_prompt import generate_pool_prompt, generate_proposer_prompt
 from prompt.tuner_prompt import generate_tuner_prompt
 
 logger = logging.getLogger(__name__)
@@ -57,7 +49,7 @@ def propose_step(
         max_completion_tokens=args.max_completion_tokens,
     )
     proposal_kernel = extract_first_code(proposer_output, ["python", "cpp"])
-    proposal_metrics = eval_kernel(
+    proposal_metrics = args.eval_fn(
         kernel_code=proposal_kernel,
         task_id=getattr(args, "problem_id", None),
         dataset_root=get_dataset_root(args.test_source),
@@ -97,7 +89,7 @@ def refine_step(
     for old_str, new_str in edits:
         tuned_kernel = str_replace(tuned_kernel, old_str, new_str)
 
-    tuned_metrics = eval_kernel(
+    tuned_metrics = args.eval_fn(
         kernel_code=tuned_kernel,
         task_id=getattr(args, "problem_id", None),
         dataset_root=get_dataset_root(args.test_source),
