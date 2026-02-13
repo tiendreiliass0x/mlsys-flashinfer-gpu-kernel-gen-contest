@@ -227,13 +227,15 @@ if __name__ == "__main__":
         yaml.dump(vars(args), f, sort_keys=False)
 
     if args.eval_backend == "modal":
+        import modal
+
         from agent.modal_eval import create_modal_app, ensure_dataset_synced
 
         modal_app, remote_eval_fn, dataset_vol = create_modal_app(args.modal_gpu)
         args.eval_fn = create_eval_fn(
             "modal", args.test_source, remote_fn=remote_eval_fn
         )
-        with modal_app.run():
+        with modal.enable_output(), modal_app.run():
             ensure_dataset_synced(
                 dataset_vol, get_dataset_root(args.test_source), args.test_source
             )
