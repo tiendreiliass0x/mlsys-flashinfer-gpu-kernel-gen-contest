@@ -47,6 +47,7 @@ def propose_step(
         model_name=args.model_name,
         prompt=proposer_prompt,
         max_completion_tokens=args.max_completion_tokens,
+        temperature=getattr(args, "temperature", 1.0),
     )
     proposal_kernel = extract_first_code(proposer_output, ["python", "cpp"])
     proposal_metrics = args.eval_fn(
@@ -83,22 +84,37 @@ def refine_step(
         model_name=args.model_name,
         prompt=tuner_prompt,
         max_completion_tokens=args.max_completion_tokens,
+        temperature=getattr(args, "temperature", 1.0),
     )
     tuned_kernel = previous_kernels[-1]
     edits = extract_edits(tuner_output)
+    applied_edits = 0
     for old_str, new_str in edits:
-        tuned_kernel = str_replace(tuned_kernel, old_str, new_str)
+        updated_kernel = str_replace(tuned_kernel, old_str, new_str)
+        if updated_kernel != tuned_kernel:
+            applied_edits += 1
+        tuned_kernel = updated_kernel
 
-    tuned_metrics = args.eval_fn(
-        kernel_code=tuned_kernel,
-        task_id=getattr(args, "problem_id", None),
-        dataset_root=get_dataset_root(args.test_source),
-    )
+    if applied_edits == 0:
+        tuned_metrics = EvalResult(
+            compiled=False,
+            correct=False,
+            speedup=0.0,
+            task_id=getattr(args, "problem_id", None) or "",
+            error="No-op tuning step: no str_replace edit was applied",
+        )
+    else:
+        tuned_metrics = args.eval_fn(
+            kernel_code=tuned_kernel,
+            task_id=getattr(args, "problem_id", None),
+            dataset_root=get_dataset_root(args.test_source),
+        )
 
     logs = {
         "tuner_prompt": tuner_prompt,
         "tuned_kernel": tuned_kernel,
         "tuned_metrics": tuned_metrics,
+        "applied_edits": applied_edits,
     }
     return tuned_kernel, tuned_metrics, logs
 
@@ -252,7 +268,7 @@ def run_iterative_loop(
         initial=start_step,
         total=args.refine_steps,
     ):
-        logger.debug(f"Running kernel {i+1} of {args.refine_steps}")
+        logger.debug(f"Running kernel {i + 1} of {args.refine_steps}")
 
         if len(previous_kernels) == 0:
             # Propose initial kernel
@@ -266,7 +282,7 @@ def run_iterative_loop(
             local_best_score = calculate_score(proposal_metrics)
             _save_step(
                 log_path,
-                f"proposal_{large_loop_id}_{i+1}",
+                f"proposal_{large_loop_id}_{i + 1}",
                 proposal_kernel,
                 proposal_metrics,
                 logs["proposer_prompt"],
@@ -280,7 +296,7 @@ def run_iterative_loop(
 
         _save_step(
             log_path,
-            f"tune_{large_loop_id}_{i+1}",
+            f"tune_{large_loop_id}_{i + 1}",
             tuned_kernel,
             tuned_metrics,
             logs["tuner_prompt"],

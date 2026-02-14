@@ -6,15 +6,6 @@ import json
 import logging
 import uuid
 
-from flashinfer_bench.bench import Benchmark, BenchmarkConfig
-from flashinfer_bench.data import (
-    BuildSpec,
-    EvaluationStatus,
-    Solution,
-    SourceFile,
-    SupportedLanguages,
-    TraceSet,
-)
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -114,6 +105,16 @@ def eval_kernel(
     Returns:
         EvalResult with compiled, correct, speedup, latency_ms, etc.
     """
+    from flashinfer_bench.bench import Benchmark, BenchmarkConfig
+    from flashinfer_bench.data import (
+        BuildSpec,
+        EvaluationStatus,
+        Solution,
+        SourceFile,
+        SupportedLanguages,
+        TraceSet,
+    )
+
     trace_set = TraceSet.from_path(dataset_root)
 
     solution_name = f"agent_{uuid.uuid4().hex[:8]}"

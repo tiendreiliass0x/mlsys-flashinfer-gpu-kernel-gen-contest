@@ -107,6 +107,7 @@ def run_main_loop(args):
     """Run the agent on all tasks and report results."""
     tasks = load_tasks_from_test_list(args.tasks_path, args.test_source)
     inference_server = create_inference_server(api_type=args.api_type)
+    resume_root = args.resume_from
 
     correct_count = 0
     sum_speedup = 0.0
@@ -115,10 +116,12 @@ def run_main_loop(args):
     for task in tqdm(tasks, desc="Processing problems"):
         level, problem_id = task["level"], task["problem_id"]
 
-        # Handle resume path
-        if args.resume_from:
-            resume_path = os.path.join(args.resume_from, f"{level}_{problem_id}")
+        # Handle per-task resume path without mutating the original resume root.
+        if resume_root:
+            resume_path = os.path.join(resume_root, f"{level}_{problem_id}")
             args.resume_from = resume_path if os.path.exists(resume_path) else None
+        else:
+            args.resume_from = None
 
         # Skip already-completed problems
         cached = _check_cached_result(args, level, problem_id)

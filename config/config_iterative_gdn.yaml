@@ -1,0 +1,15 @@
+test_source: mlsys26-contest
+agent_type: iterative
+tasks_path: config/tasks_gdn.txt
+gpu_name: B200
+gpu_architecture: Blackwell
+api_type: claude
+model_name: claude-sonnet-4-5
+temperature: 0.6
+max_completion_tokens: 16384
+total_steps: 25
+pool_size: 6
+softmax_temperature: 1.0
+eval_backend: local
+modal_gpu: B200
+debug: false
