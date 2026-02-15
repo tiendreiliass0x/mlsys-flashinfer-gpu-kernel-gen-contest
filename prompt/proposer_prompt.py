@@ -68,6 +68,27 @@ Generate the implementation:
 """
 
 
+STRUCTURED_ENGINEERING_TRACE_PROMPT = """
+## Structured Engineering Trace Protocol
+
+Before code generation, produce an auditable JSON trace that includes:
+- optimization ladder rung (1-8) and single optimization focus
+- 9-bug prevention audit (masking, dot dims, f32 accumulators, strides, grid, autotune launch args, K alignment, tl vs torch ops, tl ops vs python builtins)
+- skills/library trace with section citations
+- hardware bottleneck hypothesis and memory/register plan
+- contrastive optimization decisions in the format:
+  "Compared to [alternative], I chose [decision] because [hardware reason]. Without this, [degradation] due to [bottleneck]."
+- numerical stability and verification plan
+
+Output contract:
+1) First output a single JSON object trace.
+2) Then output ONLY kernel code (no markdown explanation).
+3) Do not include any additional prose after code.
+
+All technical claims in the JSON trace must cite sections as `Per Section X.Y`.
+"""
+
+
 def generate_proposer_prompt(pool_prompt: str = None, task_params: dict = None):
     prompt = PROBLEM_STATEMENT
 
@@ -78,6 +99,7 @@ def generate_proposer_prompt(pool_prompt: str = None, task_params: dict = None):
             raise ValueError(f"Missing required parameter: {key}")
 
     prompt += TRITON_PROMPT.format(**task_params)
+    prompt += STRUCTURED_ENGINEERING_TRACE_PROMPT
     if pool_prompt is not None:
         prompt += pool_prompt
     return prompt

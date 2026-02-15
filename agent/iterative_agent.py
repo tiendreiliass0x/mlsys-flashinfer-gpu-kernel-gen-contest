@@ -10,7 +10,13 @@ from tqdm import tqdm
 
 from agent.api import query_inference_server
 from agent.eval import EvalResult, calculate_score
-from agent.utils import extract_edits, extract_first_code, get_dataset_root, str_replace
+from agent.utils import (
+    extract_edits,
+    extract_first_code,
+    extract_json_trace_and_clean_output,
+    get_dataset_root,
+    str_replace,
+)
 from prompt.proposer_prompt import generate_pool_prompt, generate_proposer_prompt
 from prompt.tuner_prompt import generate_tuner_prompt
 
@@ -42,14 +48,17 @@ def propose_step(
         task_params=args.task_params,
         pool_prompt=pool_prompt,
     )
-    proposer_output = query_inference_server(
+    proposer_output_raw = query_inference_server(
         server=inference_server,
         model_name=args.model_name,
         prompt=proposer_prompt,
         max_completion_tokens=args.max_completion_tokens,
         temperature=getattr(args, "temperature", 1.0),
     )
-    proposal_kernel = extract_first_code(proposer_output, ["python", "cpp"])
+    proposer_output_clean, proposer_trace_json = extract_json_trace_and_clean_output(
+        proposer_output_raw
+    )
+    proposal_kernel = extract_first_code(proposer_output_clean, ["python", "cpp"])
     proposal_metrics = args.eval_fn(
         kernel_code=proposal_kernel,
         task_id=getattr(args, "problem_id", None),
@@ -60,6 +69,8 @@ def propose_step(
         "proposer_prompt": proposer_prompt,
         "proposal_kernel": proposal_kernel,
         "proposal_metrics": proposal_metrics,
+        "proposer_output_clean": proposer_output_clean,
+        "proposer_trace_json": proposer_trace_json,
     }
     return proposal_kernel, proposal_metrics, logs
 
@@ -79,15 +90,18 @@ def refine_step(
         filter_wrong_attempts=getattr(args, "filter_wrong_attempts", False),
     )
 
-    tuner_output = query_inference_server(
+    tuner_output_raw = query_inference_server(
         server=inference_server,
         model_name=args.model_name,
         prompt=tuner_prompt,
         max_completion_tokens=args.max_completion_tokens,
         temperature=getattr(args, "temperature", 1.0),
     )
+    tuner_output_clean, tuner_trace_json = extract_json_trace_and_clean_output(
+        tuner_output_raw
+    )
     tuned_kernel = previous_kernels[-1]
-    edits = extract_edits(tuner_output)
+    edits = extract_edits(tuner_output_clean)
     applied_edits = 0
     for old_str, new_str in edits:
         updated_kernel = str_replace(tuned_kernel, old_str, new_str)
@@ -115,6 +129,8 @@ def refine_step(
         "tuned_kernel": tuned_kernel,
         "tuned_metrics": tuned_metrics,
         "applied_edits": applied_edits,
+        "tuner_output_clean": tuner_output_clean,
+        "tuner_trace_json": tuner_trace_json,
     }
     return tuned_kernel, tuned_metrics, logs
 
@@ -127,7 +143,7 @@ def load_from_logs(log_path: str):
         (previous_kernels, previous_metrics, max_step,
          local_best_kernel, local_best_metric, local_best_score)
     """
-    empty = ([], [], 0, None, None, -1.0)
+    empty = ([], [], 0, None, None, (0, 0, 0.0))
 
     if not os.path.exists(log_path):
         logger.warning(f"Log path {log_path} does not exist")
@@ -151,7 +167,7 @@ def load_from_logs(log_path: str):
     step_files.sort(key=lambda x: x[1])
 
     previous_kernels, previous_metrics = [], []
-    local_best_kernel, local_best_metric, local_best_score = None, None, -1.0
+    local_best_kernel, local_best_metric, local_best_score = None, None, (0, 0, 0.0)
     max_step = 0
 
     for step_type, step_idx, kernel_file in step_files:
@@ -207,7 +223,15 @@ def copy_step_files(src_path: str, dst_path: str, max_step: int = 0):
                     logger.debug(f"Copied {src_file} -> {dst_file}")
 
 
-def _save_step(log_path, prefix, kernel, metrics, prompt_text):
+def _save_step(
+    log_path,
+    prefix,
+    kernel,
+    metrics,
+    prompt_text,
+    llm_output_text=None,
+    llm_trace_json=None,
+):
     """Save kernel, metrics JSON, and prompt for a single step."""
     if log_path is None:
         return
@@ -217,6 +241,12 @@ def _save_step(log_path, prefix, kernel, metrics, prompt_text):
         json.dump(metrics.model_dump(), f)
     with open(os.path.join(log_path, f"{prefix}_prompt.txt"), "w") as f:
         f.write(prompt_text)
+    if llm_output_text is not None:
+        with open(os.path.join(log_path, f"{prefix}_response.txt"), "w") as f:
+            f.write(llm_output_text)
+    if llm_trace_json is not None:
+        with open(os.path.join(log_path, f"{prefix}_trace.json"), "w") as f:
+            json.dump(llm_trace_json, f, indent=2)
 
 
 def run_iterative_loop(
@@ -257,7 +287,9 @@ def run_iterative_loop(
         previous_kernels = [initial_kernel] if initial_kernel is not None else []
         previous_metrics = [initial_metrics] if initial_metrics is not None else []
         local_best_score = (
-            calculate_score(initial_metrics) if initial_metrics is not None else -1.0
+            calculate_score(initial_metrics)
+            if initial_metrics is not None
+            else (0, 0, 0.0)
         )
         local_best_kernel = initial_kernel
         local_best_metric = initial_metrics
@@ -286,6 +318,8 @@ def run_iterative_loop(
                 proposal_kernel,
                 proposal_metrics,
                 logs["proposer_prompt"],
+                logs.get("proposer_output_clean"),
+                logs.get("proposer_trace_json"),
             )
             continue
 
@@ -300,6 +334,8 @@ def run_iterative_loop(
             tuned_kernel,
             tuned_metrics,
             logs["tuner_prompt"],
+            logs.get("tuner_output_clean"),
+            logs.get("tuner_trace_json"),
         )
 
         previous_kernels.append(tuned_kernel)

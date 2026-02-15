@@ -50,10 +50,17 @@ The tuning metrics contain the following information:
 
 ### Goal
 
-- Perform small, localized updates to code in the last version of the custom kernels with the str_replace command to correct the correctness errors or improve the performance of the custom kernels, but keep the high-level architecture unchanged.
+- Perform small, localized updates to code in the last version of the custom kernels with the str_replace command.
+- Keep the high-level architecture unchanged.
+- Use this tuning phase as a two-stage objective:
+  1. If latest metrics are not correct, prioritize compile/correctness only.
+  2. If latest metrics are correct, perform performance-only micro-optimizations.
+
 When making edits:
-   - Ensure the edit results in idiomatic, correct code
+   - Ensure edits are idiomatic and correct
    - Do not leave the code in a broken state
+   - Prefer micro-edits (3-12 lines) over broad rewrites
+   - Modify at most 2 code regions per response
 
 CRITICAL REQUIREMENTS FOR USING THIS TOOL:
 
@@ -63,8 +70,14 @@ CRITICAL REQUIREMENTS FOR USING THIS TOOL:
 2. UNIQUENESS: The `old_str` must uniquely identify a single instance in the file:
    - Include sufficient context before and after the change point (3-5 lines recommended)
    - If not unique, the replacement will not be performed
+   - Include one unique anchor line in each `old_str` (e.g., function signature, unique comment, or distinctive assignment)
 
 3. REPLACEMENT: The `new_str` parameter should contain the edited lines that replace the `old_str`. Both strings must be different.
+
+4. NO-OP PREVENTION:
+   - If you cannot provide at least one high-confidence unique exact match, output exactly:
+     <NO_VALID_EDIT/>
+   - Do NOT guess broad code spans that are likely to mismatch.
 
 Remember: You should prefer to send all edits in a single message with multiple calls rather than multiple messages with a single call each.
 
@@ -73,6 +86,11 @@ Remember: You should prefer to send all edits in a single message with multiple 
 You should output all the edits in a single message with multiple call. Each call should be a single edit as follows with id `1` to `n`.
 - For each edit, you should provide the reasoning for the edit in the <reasoning_i> block, followed by the old code block in the <old_str_i> block, followed by the new code block in the <new_str_i> block.
 - You should ensure the `old_str_i` matches exactly with the file content, otherwise the str_replace tool will fail.
+- Provide at most 2 edits.
+
+If no safe edit exists, return only:
+
+<NO_VALID_EDIT/>
 
 Example output format:
 
@@ -145,8 +163,9 @@ def generate_tuner_prompt(
         ]
         if filtered_pairs:
             previous_kernels, previous_metrics = zip(*filtered_pairs)
-            previous_kernels, previous_metrics = list(previous_kernels), list(
-                previous_metrics
+            previous_kernels, previous_metrics = (
+                list(previous_kernels),
+                list(previous_metrics),
             )
         else:
             previous_kernels, previous_metrics = [], []

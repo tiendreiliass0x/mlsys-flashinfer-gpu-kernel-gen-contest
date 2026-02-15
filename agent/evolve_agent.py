@@ -37,7 +37,7 @@ def run_evolve_loop(
         range(args.proposal_steps),
         desc=f"Evolve Agent on {args.level}_{args.problem_id}",
     ):
-        logger.debug(f"Running proposal {i+1} of {args.proposal_steps}")
+        logger.debug(f"Running proposal {i + 1} of {args.proposal_steps}")
 
         recent_context_ids: list[int] = []
         elite_context_ids: list[int] = []
@@ -108,12 +108,24 @@ def run_evolve_loop(
 
         # Log the proposal
         if log_path is not None:
-            with open(os.path.join(log_path, f"proposal_{i+1}.txt"), "w") as f:
+            with open(os.path.join(log_path, f"proposal_{i + 1}.txt"), "w") as f:
                 f.write(logs["proposer_prompt"])
-            with open(os.path.join(log_path, f"proposal_{i+1}.py"), "w") as f:
+            with open(os.path.join(log_path, f"proposal_{i + 1}.py"), "w") as f:
                 f.write(logs["proposal_kernel"])
-            with open(os.path.join(log_path, f"proposal_{i+1}_metrics.json"), "w") as f:
+            with open(
+                os.path.join(log_path, f"proposal_{i + 1}_metrics.json"), "w"
+            ) as f:
                 json.dump(logs["proposal_metrics"].model_dump(), f)
+            if logs.get("proposer_output_clean") is not None:
+                with open(
+                    os.path.join(log_path, f"proposal_{i + 1}_response.txt"), "w"
+                ) as f:
+                    f.write(logs["proposer_output_clean"])
+            if logs.get("proposer_trace_json") is not None:
+                with open(
+                    os.path.join(log_path, f"proposal_{i + 1}_trace.json"), "w"
+                ) as f:
+                    json.dump(logs["proposer_trace_json"], f, indent=2)
 
             step_log = {
                 "step": i + 1,
@@ -131,13 +143,11 @@ def run_evolve_loop(
                     "elite": len(elite_context_ids),
                 },
                 "compiled": proposal_metrics.compiled if proposal_metrics else False,
-                "correct": (
-                    proposal_metrics.correct if proposal_metrics else False
-                ),
+                "correct": (proposal_metrics.correct if proposal_metrics else False),
                 "speedup": proposal_metrics.speedup if proposal_metrics else 0.0,
                 "score": calculate_score(proposal_metrics),
             }
-            with open(os.path.join(log_path, f"proposal_{i+1}_log.json"), "w") as f:
+            with open(os.path.join(log_path, f"proposal_{i + 1}_log.json"), "w") as f:
                 json.dump(step_log, f, indent=2)
 
         if args.refine_steps > 0:

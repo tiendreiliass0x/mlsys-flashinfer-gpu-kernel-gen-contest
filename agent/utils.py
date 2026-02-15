@@ -35,6 +35,43 @@ def extract_first_code(output_string: str, code_language_types: list[str]) -> st
     return output_string
 
 
+def extract_json_trace_and_clean_output(output_string: str):
+    """
+    Extract a leading/fenced JSON trace from model output and return
+    (clean_output, json_trace).
+
+    The returned clean_output is intended for downstream code/edit extraction.
+    """
+    if output_string is None:
+        return "", None
+
+    text = output_string.strip()
+
+    # Case 1: fenced json block
+    for match in re.finditer(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL):
+        payload = match.group(1).strip()
+        try:
+            trace = json.loads(payload)
+        except Exception:
+            continue
+        cleaned = (text[: match.start()] + text[match.end() :]).strip()
+        return cleaned, trace
+
+    # Case 2: raw leading JSON object
+    stripped = text.lstrip()
+    leading_ws = len(text) - len(stripped)
+    if stripped.startswith("{"):
+        decoder = json.JSONDecoder()
+        try:
+            trace, end_idx = decoder.raw_decode(stripped)
+            cleaned = (text[:leading_ws] + stripped[end_idx:]).strip()
+            return cleaned, trace
+        except Exception:
+            pass
+
+    return text, None
+
+
 def str_replace(
     file_content: str,
     old_str: str,
@@ -118,12 +155,15 @@ def extract_edits(output: str):
 def get_dataset_root(test_source: str) -> str:
     """Return dataset root path for the given test source."""
     if test_source not in DATASET_ROOTS:
-        raise ValueError(f"Unknown test_source: {test_source}, expected one of {list(DATASET_ROOTS)}")
+        raise ValueError(
+            f"Unknown test_source: {test_source}, expected one of {list(DATASET_ROOTS)}"
+        )
     return DATASET_ROOTS[test_source]
 
 
 def construct_flashinfer_trace_dataset(
-    op_type: str, dataset_root: str = None,
+    op_type: str,
+    dataset_root: str = None,
 ) -> list[str]:
     """Return sorted list of problem names for given op_type."""
     if dataset_root is None:
@@ -158,7 +198,8 @@ def load_test_source(test_source: str, level, problem_id):
 
 
 def load_tasks_from_test_list(
-    tasks_path: str, test_source: str = "mlsys26-contest",
+    tasks_path: str,
+    test_source: str = "mlsys26-contest",
 ) -> list[dict]:
     """
     Load tasks from a test list file.
@@ -180,7 +221,9 @@ def load_tasks_from_test_list(
         parts = line.split(" ", 1)
         level = parts[0]
         if len(parts) == 1:
-            problems = construct_flashinfer_trace_dataset(level, dataset_root=dataset_root)
+            problems = construct_flashinfer_trace_dataset(
+                level, dataset_root=dataset_root
+            )
         else:
             problems = [p.strip() for p in parts[1].split(",") if p.strip()]
         tasks.extend({"level": level, "problem_id": str(p)} for p in problems)
